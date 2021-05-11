@@ -14,6 +14,7 @@
 
 #include <Version.hpp>
 #include <iostream>
+#include <cstring>
 
 void printHelp() {
     std::cout << "Program usage: huffman [flags] input_file output_file\n";
@@ -33,7 +34,31 @@ void printInfo() {
 }
 
 int main(int argc, char** argv) {
-    printHelp();
-    printInfo();
+    if (argc < 2) {
+        printHelp();
+        return -1;
+    }
+
+    if (std::strcmp(argv[1], "-c") == 0) { // Compression
+        if (argc != 4) {
+            printHelp();
+            return -1;
+        }
+    } else if (std::strcmp(argv[1], "-d") == 0) { // Decompression
+        if (argc != 4) {
+            printHelp();
+            return -1;
+        }
+    } else if (std::strcmp(argv[1], "-h") == 0) { // Help
+        printHelp();
+        return 0;
+    } else if (std::strcmp(argv[1], "-i") == 0) { // Info
+        printInfo();
+        return 0;
+    } else { // Not defined
+        printHelp();
+        return -1;
+    }
+
     return 0;
 }
