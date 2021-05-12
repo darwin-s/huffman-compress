@@ -26,9 +26,9 @@ public:
     PriorityQueue(const PriorityQueue& other);
     PriorityQueue(PriorityQueue&& other) noexcept;
     ~PriorityQueue();
-    void insert(const HuffmanNode& node);
-    HuffmanNode getMin() const;
-    HuffmanNode popMin();
+    void insert(HuffmanNode* node);
+    const HuffmanNode* getMin() const;
+    HuffmanNode* popMin();
     int getSize() const;
 
     PriorityQueue& operator=(const PriorityQueue& other);

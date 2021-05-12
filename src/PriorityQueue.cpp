@@ -73,33 +73,19 @@ PriorityQueue::~PriorityQueue() {
     }
 }
 
-void PriorityQueue::insert(const HuffmanNode& node) {
-    HuffmanNode* n = new HuffmanNode;
-    n->frequency = node.frequency;
-    n->symbol = node.symbol;
-    n->left = node.left;
-    n->right = node.right;
-
-    m_queue.push_back(n);
+void PriorityQueue::insert(HuffmanNode* node) {
+    m_queue.push_back(node);
 
     // "Heapify" upwards
     siftUp(m_queue.size() - 1);
 }
 
-HuffmanNode PriorityQueue::getMin() const {
-    HuffmanNode* min = m_queue[0];
-    HuffmanNode ret;
-
-    ret.frequency = min->frequency;
-    ret.symbol = min->symbol;
-    ret.left = min->left;
-    ret.right = min->right;
-
-    return ret;
+const HuffmanNode* PriorityQueue::getMin() const {
+    return m_queue[0];
 }
 
-HuffmanNode PriorityQueue::popMin() {
-    HuffmanNode min = getMin();
+HuffmanNode* PriorityQueue::popMin() {
+    HuffmanNode* min = m_queue[0];
     HuffmanNode* last = m_queue[m_queue.size() - 1];
 
     // Remove last element and put it at the beginning
