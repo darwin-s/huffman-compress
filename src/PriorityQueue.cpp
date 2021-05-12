@@ -19,6 +19,26 @@ namespace {
 
 constexpr int INITIAL_SIZE = 1024;
 
+void copyChildren(hfm::PriorityQueue::TreeNode* dest, const hfm::PriorityQueue::TreeNode* src) {
+    if (src->left != nullptr) {
+        dest->left = new hfm::PriorityQueue::TreeNode;
+        dest->left->frequency = src->left->frequency;
+        dest->left->symbol = src->left->symbol;
+        dest->left->left = nullptr;
+        dest->left->right = nullptr;
+        copyChildren(dest->left, src->left);
+    }
+
+    if (src->right != nullptr) {
+        dest->right = new hfm::PriorityQueue::TreeNode;
+        dest->right->frequency = src->right->frequency;
+        dest->right->symbol = src->right->symbol;
+        dest->right->left = nullptr;
+        dest->right->right = nullptr;
+        copyChildren(dest->right, src->right);
+    }
+}
+
 }
 
 namespace hfm {
@@ -27,18 +47,28 @@ PriorityQueue::TreeNode::TreeNode()
     : frequency(0), symbol(NO_SYMBOL), left(nullptr), right(nullptr) {
 }
 
-PriorityQueue::TreeNode::~TreeNode() {
-    if (left != nullptr) {
-        delete left;
-    }
+PriorityQueue::PriorityQueue() {
+    m_queue.reserve(INITIAL_SIZE);
+}
 
-    if (right != nullptr) {
-        delete right;
+PriorityQueue::PriorityQueue(const PriorityQueue& other) {
+    m_queue.reserve(other.m_queue.size());
+    for (const auto* n : other.m_queue) {
+        TreeNode* newNode = new TreeNode;
+        newNode->frequency = n->frequency;
+        newNode->symbol = n->symbol;
+        newNode->left = nullptr;
+        newNode->right = nullptr;
+        copyChildren(newNode, n);
     }
 }
 
-PriorityQueue::PriorityQueue() 
-    : m_queue(INITIAL_SIZE) {
+PriorityQueue::PriorityQueue(PriorityQueue&& other) noexcept {
+    m_queue.reserve(other.m_queue.size());
+    for (auto* n : other.m_queue) {
+        m_queue.push_back(n);
+    }
+    other.m_queue.clear();
 }
 
 PriorityQueue::~PriorityQueue() {
@@ -76,16 +106,41 @@ PriorityQueue::TreeNode PriorityQueue::popMin() {
 
     // Remove last element and put it at the beginning
     m_queue.pop_back();
-    m_queue[0] = last;
-
-    // Now "heapify downwards"
-    siftDown(0);
+    if (!m_queue.empty()) {
+        m_queue[0] = last;
+        // Now "heapify downwards"
+        siftDown(0);
+    }
 
     return min;
 }
 
 int PriorityQueue::getSize() const {
     return m_queue.size();
+}
+
+PriorityQueue& PriorityQueue::operator=(const PriorityQueue& other) {
+    m_queue.reserve(other.m_queue.size());
+    for (const auto* n : other.m_queue) {
+        TreeNode* newNode = new TreeNode;
+        newNode->frequency = n->frequency;
+        newNode->symbol = n->symbol;
+        newNode->left = nullptr;
+        newNode->right = nullptr;
+        copyChildren(newNode, n);
+    }
+
+    return *this;
+}
+
+PriorityQueue& PriorityQueue::operator=(PriorityQueue&& other) noexcept {
+    m_queue.reserve(other.m_queue.size());
+    for (auto* n : other.m_queue) {
+        m_queue.push_back(n);
+    }
+    other.m_queue.clear();
+
+    return *this;
 }
 
 int PriorityQueue::getParentIndex(const int nodeIndex) const {
