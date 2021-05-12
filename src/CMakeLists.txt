@@ -6,11 +6,13 @@ set(HFM_GENERATED
     ${CMAKE_CURRENT_BINARY_DIR}/../include/Version.hpp)
 
 set(HFM_INCLUDES 
-    ../include/PriorityQueue.hpp)
+    ../include/PriorityQueue.hpp
+    ../include/HuffmanNode.hpp)
 
 set(HFM_SOURCES
     main.cpp
-    PriorityQueue.cpp)
+    PriorityQueue.cpp
+    HuffmanNode.cpp)
 
 add_executable(huffman ${HFM_SOURCES} ${HFM_INCLUDES} ${HFM_GENERATED})
 target_compile_features(huffman PUBLIC cxx_std_17)

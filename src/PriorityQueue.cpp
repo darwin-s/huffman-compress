@@ -19,9 +19,9 @@ namespace {
 
 constexpr int INITIAL_SIZE = 1024;
 
-void copyChildren(hfm::PriorityQueue::TreeNode* dest, const hfm::PriorityQueue::TreeNode* src) {
+void copyChildren(hfm::HuffmanNode* dest, const hfm::HuffmanNode* src) {
     if (src->left != nullptr) {
-        dest->left = new hfm::PriorityQueue::TreeNode;
+        dest->left = new hfm::HuffmanNode;
         dest->left->frequency = src->left->frequency;
         dest->left->symbol = src->left->symbol;
         dest->left->left = nullptr;
@@ -30,7 +30,7 @@ void copyChildren(hfm::PriorityQueue::TreeNode* dest, const hfm::PriorityQueue::
     }
 
     if (src->right != nullptr) {
-        dest->right = new hfm::PriorityQueue::TreeNode;
+        dest->right = new hfm::HuffmanNode;
         dest->right->frequency = src->right->frequency;
         dest->right->symbol = src->right->symbol;
         dest->right->left = nullptr;
@@ -43,10 +43,6 @@ void copyChildren(hfm::PriorityQueue::TreeNode* dest, const hfm::PriorityQueue::
 
 namespace hfm {
 
-PriorityQueue::TreeNode::TreeNode() 
-    : frequency(0), symbol(NO_SYMBOL), left(nullptr), right(nullptr) {
-}
-
 PriorityQueue::PriorityQueue() {
     m_queue.reserve(INITIAL_SIZE);
 }
@@ -54,7 +50,7 @@ PriorityQueue::PriorityQueue() {
 PriorityQueue::PriorityQueue(const PriorityQueue& other) {
     m_queue.reserve(other.m_queue.size());
     for (const auto* n : other.m_queue) {
-        TreeNode* newNode = new TreeNode;
+        HuffmanNode* newNode = new HuffmanNode;
         newNode->frequency = n->frequency;
         newNode->symbol = n->symbol;
         newNode->left = nullptr;
@@ -77,8 +73,8 @@ PriorityQueue::~PriorityQueue() {
     }
 }
 
-void PriorityQueue::insert(const PriorityQueue::TreeNode& node) {
-    TreeNode* n = new TreeNode;
+void PriorityQueue::insert(const HuffmanNode& node) {
+    HuffmanNode* n = new HuffmanNode;
     n->frequency = node.frequency;
     n->symbol = node.symbol;
     n->left = node.left;
@@ -90,19 +86,21 @@ void PriorityQueue::insert(const PriorityQueue::TreeNode& node) {
     siftUp(m_queue.size() - 1);
 }
 
-PriorityQueue::TreeNode PriorityQueue::getMin() const {
-    TreeNode* min = m_queue[0];
-    TreeNode ret;
+HuffmanNode PriorityQueue::getMin() const {
+    HuffmanNode* min = m_queue[0];
+    HuffmanNode ret;
+
     ret.frequency = min->frequency;
     ret.symbol = min->symbol;
     ret.left = min->left;
     ret.right = min->right;
+
     return ret;
 }
 
-PriorityQueue::TreeNode PriorityQueue::popMin() {
-    TreeNode min = getMin();
-    TreeNode* last = m_queue[m_queue.size() - 1];
+HuffmanNode PriorityQueue::popMin() {
+    HuffmanNode min = getMin();
+    HuffmanNode* last = m_queue[m_queue.size() - 1];
 
     // Remove last element and put it at the beginning
     m_queue.pop_back();
@@ -122,7 +120,7 @@ int PriorityQueue::getSize() const {
 PriorityQueue& PriorityQueue::operator=(const PriorityQueue& other) {
     m_queue.reserve(other.m_queue.size());
     for (const auto* n : other.m_queue) {
-        TreeNode* newNode = new TreeNode;
+        HuffmanNode* newNode = new HuffmanNode;
         newNode->frequency = n->frequency;
         newNode->symbol = n->symbol;
         newNode->left = nullptr;
@@ -159,7 +157,7 @@ void PriorityQueue::siftUp(int index) {
     int parentIndex = getParentIndex(index);
 
     while (parentIndex >= 0 && m_queue[parentIndex]->frequency > m_queue[index]->frequency) {
-        TreeNode* tmp = m_queue[parentIndex];
+        HuffmanNode* tmp = m_queue[parentIndex];
         m_queue[parentIndex] = m_queue[index];
         m_queue[index] = tmp;
 
@@ -182,7 +180,7 @@ void PriorityQueue::siftDown(const int index) {
     }
 
     if (smallestIndex != index) {
-        TreeNode* tmp = m_queue[smallestIndex];
+        HuffmanNode* tmp = m_queue[smallestIndex];
         m_queue[smallestIndex] = m_queue[index];
         m_queue[index] = tmp;
 

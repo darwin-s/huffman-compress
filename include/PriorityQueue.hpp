@@ -15,30 +15,24 @@
 #ifndef HFM_PRIORITYQUEUE_HPP
 #define HFM_PRIORITYQUEUE_HPP
 
+#include <HuffmanNode.hpp>
 #include <vector>
 
 namespace hfm {
 
 class PriorityQueue {
 public:
-    struct TreeNode {
-        TreeNode();
-        ~TreeNode();
-
-        static constexpr unsigned char NO_SYMBOL = '\0'; // Means that there is no symbol
-        int frequency; // Frequency of a certain symbol
-        unsigned char symbol; // The actual symbol of the node
-        TreeNode* left;
-        TreeNode* right;
-    };
-
-public:
     PriorityQueue();
+    PriorityQueue(const PriorityQueue& other);
+    PriorityQueue(PriorityQueue&& other) noexcept;
     ~PriorityQueue();
-    void insert(const TreeNode& node);
-    TreeNode getMin() const;
-    TreeNode popMin();
+    void insert(const HuffmanNode& node);
+    HuffmanNode getMin() const;
+    HuffmanNode popMin();
     int getSize() const;
+
+    PriorityQueue& operator=(const PriorityQueue& other);
+    PriorityQueue& operator=(PriorityQueue&& other) noexcept;
 
 private:
     int getParentIndex(int nodeIndex) const;
@@ -48,7 +42,7 @@ private:
     void siftDown(int index);
 
 private:
-    std::vector<TreeNode*> m_queue;
+    std::vector<HuffmanNode*> m_queue;
 };
 
 }
