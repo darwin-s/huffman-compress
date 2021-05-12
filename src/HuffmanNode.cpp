@@ -53,7 +53,7 @@ HuffmanNode::HuffmanNode(const HuffmanNode& other)
 
 HuffmanNode::HuffmanNode(HuffmanNode&& other) noexcept
     : frequency(other.frequency), symbol(other.symbol), left(other.left), right(other.right) {
-    other.left = nulltpr;
+    other.left = nullptr;
     other.right = nullptr;
 }
 
@@ -83,7 +83,7 @@ HuffmanNode& HuffmanNode::operator=(HuffmanNode&& other) noexcept {
     left = other.left;
     right = other.right;
 
-    other.left = nulltpr;
+    other.left = nullptr;
     other.right = nullptr;
 
     return *this;
