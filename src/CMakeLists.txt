@@ -7,12 +7,14 @@ set(HFM_GENERATED
 
 set(HFM_INCLUDES 
     ../include/PriorityQueue.hpp
-    ../include/HuffmanNode.hpp)
+    ../include/HuffmanNode.hpp
+    ../include/HuffmanCoder.hpp)
 
 set(HFM_SOURCES
     main.cpp
     PriorityQueue.cpp
-    HuffmanNode.cpp)
+    HuffmanNode.cpp
+    HuffmanCoder.cpp)
 
 add_executable(huffman ${HFM_SOURCES} ${HFM_INCLUDES} ${HFM_GENERATED})
 target_compile_features(huffman PUBLIC cxx_std_17)

@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <Version.hpp>
+#include <HuffmanCoder.hpp>
 #include <iostream>
 #include <cstring>
+#include <fstream>
 
 void printHelp() {
     std::cout << "Program usage: huffman [flags] input_file output_file\n";
