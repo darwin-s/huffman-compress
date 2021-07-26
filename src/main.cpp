@@ -14,9 +14,11 @@
 
 #include <Version.hpp>
 #include <HuffmanCoder.hpp>
+#include <HuffmanDecoder.hpp>
 #include <iostream>
 #include <cstring>
 #include <fstream>
+#include <filesystem>
 
 void printHelp() {
     std::cout << "Program usage: huffman [flags] input_file output_file\n";
@@ -45,11 +47,71 @@ int main(int argc, char** argv) {
         if (argc != 4) {
             printHelp();
             return -1;
+        } else {
+            char* buff = nullptr;
+            unsigned long buffSize = 0;
+            buffSize = std::filesystem::file_size(argv[2]);
+            buff = new char[buffSize];
+
+            std::ifstream stream(argv[2], std::ios::binary);
+            stream.read(buff, buffSize);
+            stream.close();
+
+            std::ofstream out(argv[3], std::ios::binary);
+
+            hfm::HuffmanCoder coder(buff, buffSize);
+            char outBuff[512];
+            long written = coder.compress(outBuff, 512);
+
+            while (written >= 0) {
+                out.write(outBuff, written);
+
+                written = coder.compress(outBuff, 512);
+            }
+
+            if (written == -2) {
+                out.write(outBuff, sizeof(uint64_t));
+            }
+
+            out.close();
+
+            delete[] buff;
+            return 0;
         }
     } else if (std::strcmp(argv[1], "-d") == 0) { // Decompression
         if (argc != 4) {
             printHelp();
             return -1;
+        } else {
+            char* buff = nullptr;
+            unsigned long buffSize = 0;
+            buffSize = std::filesystem::file_size(argv[2]);
+            buff = new char[buffSize];
+
+            std::ifstream stream(argv[2], std::ios::binary);
+            stream.read(buff, buffSize);
+            stream.close();
+
+            std::ofstream out(argv[3], std::ios::binary);
+
+            hfm::HuffmanDecoder coder(buff, buffSize);
+            char outBuff[512];
+            long written = coder.decompress(outBuff, 512);
+
+            while (written >= 0) {
+                out.write(outBuff, written);
+
+                written = coder.decompress(outBuff, 512);
+            }
+
+            if (written == -2) {
+                out.write(outBuff, coder.getLastBytes());
+            }
+
+            out.close();
+
+            delete[] buff;
+            return 0;
         }
     } else if (std::strcmp(argv[1], "-h") == 0) { // Help
         printHelp();

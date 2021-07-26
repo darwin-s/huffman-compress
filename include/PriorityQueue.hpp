@@ -29,7 +29,7 @@ public:
     void insert(HuffmanNode* node);
     const HuffmanNode* getMin() const;
     HuffmanNode* popMin();
-    int getSize() const;
+    std::size_t getSize() const;
 
     PriorityQueue& operator=(const PriorityQueue& other);
     PriorityQueue& operator=(PriorityQueue&& other) noexcept;

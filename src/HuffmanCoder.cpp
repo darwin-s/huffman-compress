@@ -1,11 +1,11 @@
 // Copyright 2021 Sirbu Dan
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,256 +13,196 @@
 // limitations under the License.
 
 #include <HuffmanCoder.hpp>
-#include <cstdint>
+#include <stdexcept>
 
 namespace {
 
 constexpr int FREQ_SIZE = 256;
-constexpr int BUFF_SIZE = 1024 * 8;
-constexpr int BYTES = 8;
-constexpr int BITS = 64;
+constexpr int BYTES     = 8;
+constexpr int BITS      = 64;
 
 }
 
 namespace hfm {
 
-void HuffmanCoder::generateDictionary(std::istream& input) {
-    unsigned char* data = nullptr;
-    unsigned long dataSize = 0;
-    int frequencies[FREQ_SIZE];
+HuffmanCoder::HuffmanCoder(char* inBuff, unsigned long buffSize)
+    : m_inBuff(inBuff), m_inEnd(inBuff + buffSize), m_buffSize(buffSize),
+      m_headerWritten(false), m_acc(0), m_accUsed(0) {}
 
-    input.seekg(0, std::ios::end);
-    dataSize = input.tellg();
-    input.seekg(0, std::ios::beg);
-
-    data = new unsigned char[dataSize];
-    input.read(reinterpret_cast<char*>(data), dataSize);
-
-    fillFrequencies(data, dataSize, frequencies);
-    HuffmanNode* root = generateTree(frequencies);
-    fillDictionary(root);
-
-    delete[] data;
+HuffmanCoder::HuffmanCoder(HuffmanCoder&& other) noexcept
+    : m_dictionary(std::move(other.m_dictionary)), m_inBuff(other.m_inBuff),
+      m_inEnd(other.m_inEnd), m_buffSize(other.m_buffSize),
+      m_headerWritten(other.m_headerWritten), m_acc(other.m_acc),
+      m_accUsed(other.m_accUsed) {
+    other.m_inBuff        = nullptr;
+    other.m_inEnd         = nullptr;
+    other.m_buffSize      = 0;
+    other.m_headerWritten = false;
+    other.m_acc           = 0;
+    other.m_accUsed       = 0;
 }
 
-const HuffmanCoder::Dictionary& HuffmanCoder::getDictionary() const {
+HuffmanCoder::Dictionary& HuffmanCoder::getDictionary() {
     return m_dictionary;
 }
 
 void HuffmanCoder::loadDictionary(const Dictionary& dictionary) {
-    for (const std::pair<unsigned char, std::string> it : dictionary) {
-        m_reverseDictionary[it.second] = it.first; // Flip dictionary when loading
-    }
+    m_dictionary = dictionary;
 }
 
-void HuffmanCoder::compress(std::istream& input, std::ostream& output) {
-    unsigned char* data = nullptr;
+long HuffmanCoder::compress(char* outBuff, unsigned long numBytes) {
+    if (m_dictionary.empty()) {
+        generateDictionary();
+        if (m_dictionary.empty()) {
+            throw std::runtime_error("Unable to create dictionary");
+        }
+    }
 
-    // Get input data size
-    input.seekg(0, std::ios::end);
-    unsigned long dataSize = input.tellg();
-    input.seekg(0, std::ios::beg);
+    // if we reached the end of the input
+    if (m_inBuff == m_inEnd) {
+        // If there are bits that were not written to the buffer
+        // then flush them
+        if (m_accUsed > 0) {
+            // Pad them with 0 at the end
+            for (int i = 0; i < BITS - m_accUsed; i++) {
+                m_acc <<= 1;
+            }
 
-    std::uint64_t part = 0; // 64 bit acuumulator
-    unsigned int bitsWrote = 0; // Number of bits written to the accumulator
-    unsigned int bytesWrote = 0; // Number of bytes written to the buffer
-    std::uint8_t buffer[BUFF_SIZE]; // Output buffer
+            // Write them to the buffer
+            for (int i = 0; i < BYTES; i++) {
+                outBuff[i] = (m_acc >> ((BYTES - i - 1) * BYTES)) & 0xFF;
+            }
+
+            return -2; // Signal flush needed
+        }
+
+        return -1; // Signal end of buffer
+    }
+
+    // Write header if it was not written before
+    unsigned int prefixSize = 0; // Size of prefixed bytes
+    if (!m_headerWritten) {
+        prefixSize      = writeStreamHeader(outBuff);
+        m_headerWritten = true;
+    }
+
+    unsigned int bytesWrote =
+        prefixSize;   // Number of bytes written to the buffer
     int bitsLeft = 0; // Number of bits left to process in current code
 
-    // Read all input data
-    data = new unsigned char[dataSize];
-    input.read(reinterpret_cast<char*>(data), dataSize);
-
     // Do this for every byte of the data
-    for (unsigned long i = 0; i < dataSize; i++) {
+    for (unsigned long i = 0; i < numBytes; i++) {
+        // Check if reached end of input
+        if (&m_inBuff[i] == m_inEnd) {
+            m_inBuff = m_inEnd;
+            break;
+        }
+
         // Get corresponding code for current byte
-        std::string code = m_dictionary[data[i]];
-        bitsLeft = code.size(); // Get the size of the code
+        std::string code = m_dictionary[m_inBuff[i]];
+        bitsLeft         = code.size(); // Get the size of the code
 
         // Do this untill the full code has been processed
         while (bitsLeft > 0) {
             // if accumulator is full
-            if (bitsWrote == BITS) {
+            if (m_accUsed == BITS) {
                 // Write 64 bit integer to byte array
                 for (int i = 0; i < BYTES; i++) {
-                    buffer[bytesWrote + i] = (part >> ((BYTES - i - 1) * BYTES)) & 0xFF;
+                    outBuff[bytesWrote + i] =
+                        (m_acc >> ((BYTES - i - 1) * BYTES)) & 0xFF;
                 }
                 // Reset counters
-                bitsWrote = 0;
-                part = 0;
-                bytesWrote += BYTES; // Increase number of bytes written into the array
-
-                // If array is full, then flush it to the output stream and reset the counter
-                if (bytesWrote == BUFF_SIZE) {
-                    output.write(reinterpret_cast<const char*>(buffer), BUFF_SIZE);
-                    bytesWrote = 0;
-                }
+                m_accUsed = 0;
+                m_acc     = 0;
+                bytesWrote += BYTES;
             } else {
-                // If current bit is 0 then add a 0 the the acuumulator (shift left)
-                // otherwise shift left and add a 1
+                // If current bit is 0 then add a 0 the the acuumulator (shift
+                // left) otherwise shift left and add a 1
                 if (code[code.size() - bitsLeft] == '0') {
-                    part <<= 1;
+                    m_acc <<= 1;
                 } else {
-                    part <<= 1;
-                    part |= 1;
+                    m_acc <<= 1;
+                    m_acc |= 1;
                 }
 
                 bitsLeft--;
-                bitsWrote++;
+                m_accUsed++;
             }
         }
     }
 
-    // If there are bits that were not written to the buffer
-    if (bitsWrote > 0) {
-        // Pad them with 0 at the end
-        for (int i = 0; i < BITS - bitsWrote; i++) {
-            part <<= 1;
-        }
-
-        // Write them to the buffer
-        for (int i = 0; i < BYTES; i++) {
-            buffer[bytesWrote + i] = (part >> ((BYTES - i - 1) * BYTES)) & 0xFF;
-        }
-
-        bytesWrote += BYTES;
+    // Update input buffer if end was not reached
+    if (m_inBuff != m_inEnd) {
+        m_inBuff += numBytes;
     }
 
-    // If there are bytes, that were not written to the output stream
-    // then flush them
-    if (bytesWrote > 0) {
-        output.write(reinterpret_cast<const char*>(buffer), bytesWrote);
-    }
+    return bytesWrote;
 }
 
-void HuffmanCoder::decompress(std::istream& input, std::ostream& output, unsigned long originalSize) {
-    // Generate a huffman tree from the current dictionary
-    HuffmanNode* root = generateTreeFromDictionary();
-    HuffmanNode* r = root;
-    unsigned char* data = nullptr;
+HuffmanCoder& HuffmanCoder::operator=(HuffmanCoder&& other) noexcept {
+    // Move fields
+    m_dictionary    = std::move(other.m_dictionary);
+    m_inBuff        = other.m_inBuff;
+    m_inEnd         = other.m_inEnd;
+    m_buffSize      = other.m_buffSize;
+    m_headerWritten = other.m_headerWritten;
+    m_acc           = other.m_acc;
+    m_accUsed       = other.m_accUsed;
 
-    // Get input data size
-    input.seekg(0, std::ios::end);
-    unsigned long dataSize = input.tellg();
-    input.seekg(0, std::ios::beg);
+    // Invalidate fields of other
+    other.m_inBuff        = nullptr;
+    other.m_inEnd         = nullptr;
+    other.m_buffSize      = 0;
+    other.m_headerWritten = false;
+    other.m_acc           = 0;
+    other.m_accUsed       = 0;
 
-    std::uint64_t part = 0; // 64 bit value with accumulated codes
-    unsigned int bitsRead = 0; // Number of bits read from the accumulator
-    unsigned int bytesWrote = 0; // Bytes wrote to the output buffer
-    unsigned int bytesRead = BYTES; // Number of bytes read from the input buffer
-    unsigned char buffer[BUFF_SIZE / 8]; // Output buffer
-
-    // Read all input data
-    data = new unsigned char[dataSize];
-    input.read(reinterpret_cast<char*>(data), dataSize);
-
-    // Read a 64 bit integer from the input byte array
-    for (int i = 0; i < BYTES; i++) {
-        part |= (static_cast<std::uint64_t>(data[i]) << ((BYTES - i - 1) * BYTES));
-    }
-
-    // The next part gets every bit from the input buffer
-    // and traverses the generated huffman tree
-
-    // Original size == number of codes, so this runs for every code
-    for (unsigned long i = 0; i < originalSize; i++) {
-        std::string code = "";
-        // Process untill we have a full code
-        while (true) {
-            // If we read the whole accumulator, then read a new
-            // 64 bit value from the buffer and reset the counter
-            if (bitsRead == BITS) {
-                for (int i = 0; i < BYTES; i++) {
-                    part |= (static_cast<std::uint64_t>(data[bytesRead + i]) << ((BYTES - i - i) * BYTES));
-                }   
-                bytesRead += BYTES;
-                bitsRead = 0;
-            }
-
-            // Get the MSB bit
-            int bit = (part >> (BITS - 1)) & 1;
-
-            // If current node is a leaf, then we have a full code
-            // so add the corresponding character to the output buffer
-            if (r->left == nullptr && r->right == nullptr) {
-                // If output buffer is full, then flush it to the output stream
-                // and reset the counter
-                if (bytesWrote == BUFF_SIZE / 8) {
-                    output.write(reinterpret_cast<const char*>(buffer), BUFF_SIZE / 8);
-                    bytesWrote = 0;
-                }
-
-                buffer[bytesWrote] = m_reverseDictionary[code];
-                bytesWrote++;
-                break;
-            }
-
-            // If msb is 0, then traverse to the left subtree,
-            // otherwise go to the right
-            if (bit == 0) {
-                r = r->left;
-                code += '0';
-            } else {
-                r = r->right;
-                code += '1';
-            }
-
-            // Shift the accumulator to the left, so the next bit becomes MSB
-            part <<= 1;
-            bitsRead++;
-        }
-
-        // Start over for every code
-        r = root;
-    }
-
-    // If there is pending output, then flush it to the output stream
-    if (bytesWrote > 0) {
-        output.write(reinterpret_cast<const char*>(buffer), bytesWrote);
-    }
-
-    delete[] data;
+    return *this;
 }
 
-void HuffmanCoder::fillFrequencies(const unsigned char* data, const unsigned long dataSize, int* frequencies) {
+void HuffmanCoder::generateDictionary() {
+    int frequencies[FREQ_SIZE];
+
+    fillFrequencies(frequencies);
+    generateTree(frequencies);
+    fillDictionary(m_tree.getMin());
+}
+
+void HuffmanCoder::fillFrequencies(int* frequencies) {
     for (int i = 0; i < FREQ_SIZE; i++) {
         frequencies[i] = 0;
     }
 
-    for (unsigned long i = 0; i < dataSize; i++) {
-        frequencies[static_cast<unsigned int>(data[i])]++;
+    for (unsigned long i = 0; i < m_buffSize; i++) {
+        frequencies[reinterpret_cast<unsigned char*>(m_inBuff)[i]]++;
     }
 }
 
-HuffmanNode* HuffmanCoder::generateTree(const int* frequencies) {
-    PriorityQueue pq;
-
+void HuffmanCoder::generateTree(const int* frequencies) {
     for (int i = 0; i < FREQ_SIZE; i++) {
         if (frequencies[i] != 0) {
             HuffmanNode* n = new HuffmanNode;
-            n->left = nullptr;
-            n->right = nullptr;
-            n->frequency = frequencies[i];
-            n->symbol = static_cast<unsigned char>(i);
+            n->left        = nullptr;
+            n->right       = nullptr;
+            n->frequency   = frequencies[i];
+            n->symbol      = static_cast<unsigned char>(i);
 
-            pq.insert(n);
+            m_tree.insert(n);
         }
     }
 
-    while (pq.getSize() != 1) {
-        HuffmanNode* left = pq.popMin();
-        HuffmanNode* right = pq.popMin();
-        HuffmanNode* top = new HuffmanNode;
+    while (m_tree.getSize() != 1) {
+        HuffmanNode* left  = m_tree.popMin();
+        HuffmanNode* right = m_tree.popMin();
+        HuffmanNode* top   = new HuffmanNode;
 
         top->frequency = left->frequency + right->frequency;
-        top->symbol = HuffmanNode::NO_SYMBOL;
-        top->left = left;
-        top->right = right;
+        top->symbol    = HuffmanNode::NO_SYMBOL;
+        top->left      = left;
+        top->right     = right;
 
-        pq.insert(top);
+        m_tree.insert(top);
     }
-
-    return pq.popMin();
 }
 
 void HuffmanCoder::fillDictionary(const HuffmanNode* root, std::string code) {
@@ -283,47 +223,35 @@ void HuffmanCoder::fillDictionary(const HuffmanNode* root, std::string code) {
     }
 }
 
-HuffmanNode* HuffmanCoder::generateTreeFromDictionary() {
-    HuffmanNode* root = new HuffmanNode;
-    HuffmanNode* r = root;
-    root->frequency = 0;
-    root->symbol = HuffmanNode::NO_SYMBOL;
-    root->left = nullptr;
-    root->right = nullptr;
-
-    for (const std::pair<std::string, unsigned char> it : m_reverseDictionary) {
-        std::string code = it.first;
-        while (!code.empty()) {
-            if (code[0] == '0') {
-                if (r->left == nullptr) {
-                    r->left = new HuffmanNode;
-                    r->left->frequency = 0;
-                    r->left->symbol = HuffmanNode::NO_SYMBOL;
-                    r->left->left = nullptr;
-                    r->left->right = nullptr;
-                }
-
-                r = r->left;
-            } else {
-                if (r->right == nullptr) {
-                    r->right = new HuffmanNode;
-                    r->right->frequency = 0;
-                    r->right->symbol = HuffmanNode::NO_SYMBOL;
-                    r->right->left = nullptr;
-                    r->right->right = nullptr;
-                }
-
-                r = r->right;
-            }
-
-            code.erase(0, 1);
+unsigned int HuffmanCoder::writeStreamHeader(char* outBuff) {
+    unsigned int written = 0;
+    // Write original data size
+    reinterpret_cast<unsigned long*>(outBuff)[0] = m_buffSize;
+    written += sizeof(m_buffSize);
+    outBuff += written;
+    // Write dictionary size
+    reinterpret_cast<std::uint8_t*>(outBuff)[0] = m_dictionary.size();
+    written += sizeof(std::uint8_t);
+    outBuff += sizeof(std::uint8_t);
+    // Write dictionary
+    for (const auto& c : m_dictionary) {
+        // Write code size
+        reinterpret_cast<std::uint8_t*>(outBuff)[0] = c.second.size();
+        written += sizeof(std::uint8_t);
+        outBuff += sizeof(std::uint8_t);
+        // Write code
+        for (const auto& chr : c.second) {
+            outBuff[0] = chr;
+            written++;
+            outBuff++;
         }
-
-        r->symbol = it.second;
-        r = root;
+        // Write byte for code
+        reinterpret_cast<unsigned char*>(outBuff)[0] = c.first;
+        written++;
+        outBuff++;
     }
 
-    return root;
+    return written;
 }
 
 }

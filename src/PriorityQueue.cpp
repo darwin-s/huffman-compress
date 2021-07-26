@@ -99,7 +99,7 @@ HuffmanNode* PriorityQueue::popMin() {
     return min;
 }
 
-int PriorityQueue::getSize() const {
+std::size_t PriorityQueue::getSize() const {
     return m_queue.size();
 }
 
